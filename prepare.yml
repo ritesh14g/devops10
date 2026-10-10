@@ -1,0 +1,38 @@
+---
+- name: Configure prepare.sh workspace using ansible-pull
+  hosts: localhost
+  connection: local
+  become: true
+  vars:
+    repo_url: https://github.com/<your-username>/ansible-pull-demo.git
+
+  tasks:
+    - name: Install nginx
+      ansible.builtin.apt:
+        name: nginx
+        state: present
+        update_cache: true
+        cache_valid_time: 3600
+
+    - name: Deploy home page from template
+      ansible.builtin.template:
+        src: templates/index.html.j2
+        dest: /var/www/html/index.html
+        mode: "0644"
+
+    - name: Check whether nginx is running
+      ansible.builtin.command: pgrep -x nginx
+      register: nginx_status
+      failed_when: false
+      changed_when: false
+
+    - name: Start nginx if it is not running
+      ansible.builtin.command: nginx
+      when: nginx_status.rc != 0
+
+    - name: Schedule ansible-pull every 2 minutes
+      ansible.builtin.cron:
+        name: ansible-pull
+        minute: "*/2"
+        user: root
+        job: "ansible-pull -U {{ repo_url }} -i localhost, prepare.yml >> /var/log/ansible-pull.log 2>&1"
